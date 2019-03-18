@@ -86,10 +86,9 @@ class MainWindow(QMainWindow):
         Data = Comm.makelist(self.message[4096:])
         print('data', Data)
         x = 0
-        y = x + 128
         times = len(Data) // 128
         while times:
-            Data_ = Comm.list2str(Data[x:y])
+            Data_ = Comm.list2str(Data[x:x + 128])
             message = '68' + add + '683182' + str(Flashpage) + str(offset) + Data_
             cs = self.CS(Comm.strto0x(Comm.makelist(message)))
             message = message + cs + '16'
@@ -100,7 +99,7 @@ class MainWindow(QMainWindow):
                 offset = 0
             x = x + 128
             times -= 1
-            message = ''
+
 
     def CS(self, list):
         sum = 0
