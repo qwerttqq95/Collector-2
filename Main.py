@@ -2,7 +2,7 @@ import Comm, binascii, UI_main, sys, serial, serial.tools.list_ports, threading,
 from PyQt5.QtWidgets import QApplication, QMainWindow, QMessageBox, QFileDialog
 from PyQt5.QtCore import pyqtSignal, Qt
 from traceback import print_exc
-
+from PyQt5.QtGui import QIcon
 
 class MainWindow(QMainWindow):
     _signal_text = pyqtSignal(str)
@@ -30,6 +30,7 @@ class MainWindow(QMainWindow):
         self.ui.pushButton_2.clicked.connect(self.main)
         self.ui.pushButton.clicked.connect(self.open_)
         self._signal_text.connect(self.show_message)
+        self.setWindowIcon(QIcon('web.png'))
 
     def main(self):
         self.add = self.ui.lineEdit_2.displayText()
@@ -43,27 +44,28 @@ class MainWindow(QMainWindow):
             self.ui.pushButton_2.clicked.connect(self.Sending.switch)
 
     def open_(self):
-        file = QFileDialog.getOpenFileName(self, caption='打开文件', directory='C:/Users/Administrator/Desktop/',
-                                           filter='Text Files (*.bin)')
-        self.ui.lineEdit.setText(file[0])
-
-        with open(file[0], 'rb') as f:
-            message = ''
-            while 1:
-                c = f.read()
-                ssss = str(binascii.b2a_hex(c))[2:-1]
-                message = message + ssss
-                if not c:
-                    break
-
-        self.Sending.open__(message, int(self.ui.comboBox_5.currentText()))
+        try:
+            file = QFileDialog.getOpenFileName(self, caption='打开文件', directory='C:/Users/Administrator/Desktop/',
+                                               filter='bin文件 (*.bin)')
+            self.ui.lineEdit.setText(file[0])
+            with open(file[0], 'rb') as f:
+                message = ''
+                while 1:
+                    c = f.read()
+                    ssss = str(binascii.b2a_hex(c))[2:-1]
+                    message = message + ssss
+                    if not c:
+                        break
+            self.Sending.open__(message, int(self.ui.comboBox_5.currentText()))
+        except:
+            pass
 
     def start_updata(self, add, crc):
         message = '68' + add + '681A00' + '683002' + crc
         cs = self.CS(Comm.strto0x(Comm.makelist(message)))
         message = message + cs + '16'
         print('发送采集器启动升级帧:', Comm.makestr(message))
-        send = '发送采集器启动升级帧:' + Comm.makestr(message)
+        send = '发送采集器启动升级帧:\n' + Comm.makestr(message)
         self._signal_text.emit(send)
         self.sent_time()
 
@@ -180,10 +182,11 @@ class Sending(threading.Thread):
         cs = self.CS(Comm.strto0x(Comm.makelist(message)))
         message = message + cs + '16'
         print('发送采集器复位帧:', Comm.makestr(message))
-        send = '发送采集器复位帧:' + Comm.makestr(message)
+        send = '发送采集器复位帧:\n' + Comm.makestr(message)
         MainWindow._signal_text.emit(send)
         MainWindow.sent_time()
         data = ''
+        ageain = 0
         while 1:
             self.serial.write(binascii.a2b_hex(message))
             time.sleep(1)
@@ -191,11 +194,16 @@ class Sending(threading.Thread):
             data = str(binascii.b2a_hex(self.serial.read(num)))[2:-1]
             if data == '' and self.__runflag.isSet():
                 continue
-            elif len(data) < 20:
-                data = ''
             else:
                 try:
-                    data = Comm.makelist(data)
+                    if len(data) > 20:
+                        data = Comm.makelist(data)
+                    else:
+                        ageain += 1
+                        if ageain == 3:
+                            return 1
+                        time.sleep(1)
+                        continue
                     while 1:
                         if data[0] == 'ff' or data[0] != '68':
                             data = data[1:]
@@ -220,13 +228,14 @@ class Sending(threading.Thread):
                             return 1
                 except:
                     print_exc(file=open('bug.txt', 'a+'))
+                    continue
 
     def start_updata(self, add, crc):
         message = '68' + add + '683002' + crc
         cs = self.CS(Comm.strto0x(Comm.makelist(message)))
         message = message + cs + '16'
         print('发送采集器启动升级帧:', Comm.makestr(message))
-        send = '发送采集器启动升级帧:' + Comm.makestr(message)
+        send = '发送采集器启动升级帧:\n' + Comm.makestr(message)
         MainWindow._signal_text.emit(send)
         MainWindow.sent_time()
         data = ''
@@ -278,9 +287,10 @@ class Sending(threading.Thread):
         x = 0
         times = len(Data) // 128
         while times:
-            text = '共{}帧 '.format(len(Data) // 128), ' 第{}帧'.format(len(Data) // 128 - times + 1)
-            print(text[0] + text[1])
-            MainWindow._signal_text.emit(text[0] + text[1])
+            text = '共{}帧 '.format(len(Data) // 128) + (' 第{}帧'.format(len(Data) // 128 - times + 1) +
+                                                                     '  还需要{}分钟'.format(times // 60) +
+                                                                     ('{}秒'.format(times % 60)))
+            MainWindow._signal_text.emit(text)
             Data_ = Comm.list2str(Data[x:x + 128])
             new_Flashpage = hex(Flashpage + 51)[2:]
             if len(new_Flashpage) == 1:
@@ -296,7 +306,7 @@ class Sending(threading.Thread):
             print('add', add, 'new_Flashpage', new_Flashpage, 'new_offset', new_offset, 'cs', cs)
             message = message + cs + '16'
             print('发送采集器升级数据帧：', Comm.makestr(message))
-            send = '发送采集器升级数据帧：' + Comm.makestr(message)
+            send = '发送采集器升级数据帧：\n' + Comm.makestr(message)
             MainWindow._signal_text.emit(send)
             MainWindow.sent_time()
             data = ''
@@ -350,7 +360,7 @@ class Sending(threading.Thread):
         cs = self.CS(Comm.strto0x(Comm.makelist(message)))
         message = message + cs + '16'
         print('发送采集器升级结束帧:', Comm.makestr(message))
-        send = '发送采集器升级结束帧:' + Comm.makestr(message)
+        send = '发送采集器升级结束帧:\n' + Comm.makestr(message)
         MainWindow._signal_text.emit(send)
         MainWindow.sent_time()
         data = ''
@@ -451,7 +461,6 @@ class Sending(threading.Thread):
             self.message = Comm.makelist(message + ('ff' * message_ff))
             self.CRC16 = self.CRC(self.message[4096:])
             self.message = Comm.list2str(self.plus33(self.message))
-            print('message1111', Comm.makelist(self.message))
 
             print('CRC16', self.CRC16)
             MainWindow.ui.pushButton_2.setDisabled(0)
