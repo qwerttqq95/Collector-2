@@ -84,7 +84,6 @@ class MainWindow(QMainWindow):
         Flashpage = 8
         offset = 0
         Data = Comm.makelist(self.message[4096:])
-        print('data', Data)
         x = 0
         times = len(Data) // 128
         while times:
@@ -156,6 +155,9 @@ class MainWindow(QMainWindow):
         MainWindow._signal_text.emit(time_stamp)
         MainWindow._signal_text.emit('--------------------------------')
 
+class Sending(threading.Thread):
+    def __init__(self):
+        threading.Thread.__init__(self)
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
