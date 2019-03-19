@@ -12,6 +12,7 @@ class MainWindow(QMainWindow):
         self.ui = UI_main.Ui_MainWindow()
         self.ui.setupUi(self)
         self.addItem = self.GetSerialNumber()
+        self.Sending = Sending()
         while 1:
             if self.addItem == None:
                 Warn = QMessageBox.warning(self, '警告', '未检测到串口', QMessageBox.Reset | QMessageBox.Cancel)
@@ -35,41 +36,18 @@ class MainWindow(QMainWindow):
         if self.add == '' or len(self.add) != 12:
             QMessageBox.about(self, 'ERROR', '地址长度错误！')
         else:
-            self.reset(self.add)
-            self.start_updata(self.add, self.CRC16[2:] + self.CRC16[0:2])
-            self.sending_message(self.add)
+
+            self.Sending.setDaemon(True)
+            self.Sending.start()
+            self.ui.pushButton_2.disconnect()
+            self.ui.pushButton_2.clicked.connect(self.Sending.switch)
 
     def open_(self):
         file = QFileDialog.getOpenFileName(self, caption='打开文件', directory='C:/Users/Administrator/Desktop/',
                                            filter='Text Files (*.bin)')
         self.ui.lineEdit.setText(file[0])
-        try:
-            with open(file[0], 'rb') as f:
-                message = ''
-                while 1:
-                    c = f.read()
-                    ssss = str(binascii.b2a_hex(c))[2:-1]
-                    message = message + ssss
-                    if not c:
-                        break
-                old = len(message) // 2
-                message_ff = (((len(message) // 2 - 1) // 512) + 1) * 512 - old
-                self.message = message + 'ff' * message_ff
-                self.CRC16 = self.CRC(Comm.makelist(self.message)[4096:])
-                print('CRC16', self.CRC16)
-                self.ui.pushButton_2.setDisabled(0)
+        self.Sending.open__(file)
 
-        except:
-            print_exc(file=open('bug.txt', 'a+'))
-
-    def reset(self, add):
-        message = '68' + add + '681A00'
-        cs = self.CS(Comm.strto0x(Comm.makelist(message)))
-        message = message + cs + '16'
-        print('发送采集器复位帧:', Comm.makestr(message))
-        send = '发送采集器复位帧:' + Comm.makestr(message)
-        self._signal_text.emit(send)
-        self.sent_time()
 
     def start_updata(self, add, crc):
         message = '68' + add + '681A00' + '683002' + crc
@@ -79,6 +57,139 @@ class MainWindow(QMainWindow):
         send = '发送采集器启动升级帧:' + Comm.makestr(message)
         self._signal_text.emit(send)
         self.sent_time()
+
+    def show_message(self, message):
+        self.ui.textEdit.append(message)
+
+    def GetSerialNumber(self):
+        SerialNumber = []
+        port_list = list(serial.tools.list_ports.comports())
+        if len(port_list) <= 0:
+            print("The Serial port can't find!")
+        else:
+            for i in list(port_list):
+                SerialNumber.append(i[0])
+            return SerialNumber
+
+    def sent_time(self):
+        ct = time.time()
+        local_time = time.localtime(ct)
+        data_head = time.strftime("%H:%M:%S", local_time)
+        data_secs = (ct - int(ct)) * 1000
+        time_stamp = "%s.%3d" % (data_head, data_secs)
+        MainWindow._signal_text.emit(time_stamp)
+        MainWindow._signal_text.emit('--------------------------------')
+
+    def Show_Hidden(self, num):
+        if num == '0':
+            self.ui.comboBox.setDisabled(0)
+            self.ui.comboBox_2.setDisabled(0)
+            self.ui.comboBox_3.setDisabled(0)
+            self.ui.comboBox_4.setDisabled(0)
+        else:
+            self.ui.comboBox.setDisabled(1)
+            self.ui.comboBox_2.setDisabled(1)
+            self.ui.comboBox_3.setDisabled(1)
+            self.ui.comboBox_4.setDisabled(1)
+
+
+class Sending(threading.Thread):
+    def __init__(self):
+        threading.Thread.__init__(self)
+        self.__runflag = threading.Event()
+        self.serial = serial.Serial()
+
+    def run(self):
+        self.__runflag.set()
+        while 1:
+            if self.__runflag.isSet():
+                try:
+                    revalue = self.serial_open()
+                    print('revalue', revalue)
+                    if revalue == 1:
+                        print('clear')
+                        self.__runflag.clear()
+                        MainWindow.ui.pushButton_2.setText('开始')
+                        continue
+                except:
+                    print('ERROR')
+                    print_exc(file=open('bug.txt', 'a+'))
+                    self.__runflag.clear()
+            else:
+                self.__runflag.wait()
+
+    def switch(self):
+        if self.__runflag.isSet():
+            MainWindow.ui.pushButton_2.setText('开始')
+            MainWindow.Show_Hidden('0')
+            self.__runflag.clear()
+        else:
+            MainWindow.ui.pushButton_2.setText('关闭')
+            MainWindow.Show_Hidden('1')
+            self.__runflag.set()
+
+    def serial_open(self):
+        self.serial.port = MainWindow.ui.comboBox.currentText()
+        self.serial.baudrate = int(MainWindow.ui.comboBox_2.currentText())
+        self.serial.parity = MainWindow.ui.comboBox_3.currentText()
+        self.serial.stopbits = int(MainWindow.ui.comboBox_4.currentText())
+        self.serial.timeout = 1
+        self.sending_lenth = MainWindow.ui.comboBox_5.currentText()
+        self.add = MainWindow.ui.lineEdit_2.displayText()
+        try:
+            self.serial.open()
+            MainWindow.ui.pushButton_2.setText('停止')
+            while self.__runflag.isSet():
+                self.reset(self.add)
+                time.sleep(0.1)
+                num = self.serial.inWaiting()
+                data = binascii.b2a_hex(self.serial.read(num))
+        except:
+            print_exc(file=open('bug.txt', 'a+'))
+            return 1
+
+    def reset(self, add):
+        message = '68' + add + '681A00'
+        cs = self.CS(Comm.strto0x(Comm.makelist(message)))
+        message = message + cs + '16'
+        print('发送采集器复位帧:', Comm.makestr(message))
+        send = '发送采集器复位帧:' + Comm.makestr(message)
+        MainWindow._signal_text.emit(send)
+        MainWindow.sent_time()
+        self.serial.write(binascii.a2b_hex(message))
+        time.sleep(0.7)
+        num = self.serial.inWaiting()
+        data = binascii.b2a_hex(self.serial.read(num))
+        if data == '':
+            self.reset(self.add)
+        else:
+            try:
+                data = Comm.makelist(data)
+                while 1:
+                    if data[0] == 'ff':
+                        data = data[1:]
+                    else:
+                        break
+                if data[0] == '68' and data[-1] == '16':
+                    print('Received: ', Comm.list2str(data))
+                    Received_data = '收到:\n' + Comm.makestr(Comm.list2str(data))
+                    MainWindow._signal_text.emit(Received_data)
+                    if data[-3] == '00':
+                        print('确认应答帧')
+                        return 0
+                    else:
+
+            except:
+                self.reset(self.add)
+
+    def start_updata(self, add, crc):
+        message = '68' + add + '681A00' + '683002' + crc
+        cs = self.CS(Comm.strto0x(Comm.makelist(message)))
+        message = message + cs + '16'
+        print('发送采集器启动升级帧:', Comm.makestr(message))
+        send = '发送采集器启动升级帧:' + Comm.makestr(message)
+        MainWindow._signal_text.emit(send)
+        MainWindow.sent_time()
 
     def sending_message(self, add):
         Flashpage = 8
@@ -92,13 +203,15 @@ class MainWindow(QMainWindow):
             cs = self.CS(Comm.strto0x(Comm.makelist(message)))
             message = message + cs + '16'
             print('发送采集器升级数据帧：', message)
+            send = '发送采集器升级数据帧：' + Comm.makestr(message)
+            MainWindow._signal_text.emit(send)
+            MainWindow.sent_time()
             offset += 1
             if offset == 4:
                 Flashpage += 1
                 offset = 0
             x = x + 128
             times -= 1
-
 
     def CS(self, list):
         sum = 0
@@ -133,31 +246,26 @@ class MainWindow(QMainWindow):
                 break
         return hex(tmpCRC)[2:].zfill(4)
 
-    def show_message(self, message):
-        self.ui.textEdit.append(message)
+    def open__(self,file):
+        try:
+            with open(file[0], 'rb') as f:
+                message = ''
+                while 1:
+                    c = f.read()
+                    ssss = str(binascii.b2a_hex(c))[2:-1]
+                    message = message + ssss
+                    if not c:
+                        break
+                old = len(message) // 2
+                message_ff = (((len(message) // 2 - 1) // 512) + 1) * 512 - old
+                self.message = message + 'ff' * message_ff
+                self.CRC16 = self.CRC(Comm.makelist(self.message)[4096:])
+                print('CRC16', self.CRC16)
+                MainWindow.ui.pushButton_2.setDisabled(0)
 
-    def GetSerialNumber(self):
-        SerialNumber = []
-        port_list = list(serial.tools.list_ports.comports())
-        if len(port_list) <= 0:
-            print("The Serial port can't find!")
-        else:
-            for i in list(port_list):
-                SerialNumber.append(i[0])
-            return SerialNumber
+        except:
+            print_exc(file=open('bug.txt', 'a+'))
 
-    def sent_time(self):
-        ct = time.time()
-        local_time = time.localtime(ct)
-        data_head = time.strftime("%H:%M:%S", local_time)
-        data_secs = (ct - int(ct)) * 1000
-        time_stamp = "%s.%3d" % (data_head, data_secs)
-        MainWindow._signal_text.emit(time_stamp)
-        MainWindow._signal_text.emit('--------------------------------')
-
-class Sending(threading.Thread):
-    def __init__(self):
-        threading.Thread.__init__(self)
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
