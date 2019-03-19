@@ -36,7 +36,7 @@
       <x>10</x>
       <y>130</y>
       <width>641</width>
-      <height>321</height>
+      <height>361</height>
      </rect>
     </property>
     <property name="readOnly">
@@ -217,7 +217,7 @@
      <item>
       <widget class="QLineEdit" name="lineEdit_2">
        <property name="text">
-        <string>000000000001</string>
+        <string>aaaaaaaaaaaa</string>
        </property>
        <property name="maxLength">
         <number>12</number>
@@ -226,7 +226,7 @@
      </item>
     </layout>
    </widget>
-   <widget class="QWidget" name="">
+   <widget class="QWidget" name="layoutWidget">
     <property name="geometry">
      <rect>
       <x>160</x>
@@ -272,17 +272,6 @@
     </layout>
    </widget>
   </widget>
-  <widget class="QMenuBar" name="menubar">
-   <property name="geometry">
-    <rect>
-     <x>0</x>
-     <y>0</y>
-     <width>665</width>
-     <height>23</height>
-    </rect>
-   </property>
-  </widget>
-  <widget class="QStatusBar" name="statusbar"/>
  </widget>
  <resources/>
  <connections/>

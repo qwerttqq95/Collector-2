@@ -46,8 +46,17 @@ class MainWindow(QMainWindow):
         file = QFileDialog.getOpenFileName(self, caption='打开文件', directory='C:/Users/Administrator/Desktop/',
                                            filter='Text Files (*.bin)')
         self.ui.lineEdit.setText(file[0])
-        self.Sending.open__(file)
 
+        with open(file[0], 'rb') as f:
+            message = ''
+            while 1:
+                c = f.read()
+                ssss = str(binascii.b2a_hex(c))[2:-1]
+                message = message + ssss
+                if not c:
+                    break
+
+        self.Sending.open__(message, int(self.ui.comboBox_5.currentText()))
 
     def start_updata(self, add, crc):
         message = '68' + add + '681A00' + '683002' + crc
@@ -116,6 +125,7 @@ class Sending(threading.Thread):
                     print_exc(file=open('bug.txt', 'a+'))
                     self.__runflag.clear()
             else:
+                self.serial.close()
                 self.__runflag.wait()
 
     def switch(self):
@@ -140,10 +150,27 @@ class Sending(threading.Thread):
             self.serial.open()
             MainWindow.ui.pushButton_2.setText('停止')
             while self.__runflag.isSet():
-                self.reset(self.add)
-                time.sleep(0.1)
-                num = self.serial.inWaiting()
-                data = binascii.b2a_hex(self.serial.read(num))
+                reValue1 = self.reset(self.add)
+                if reValue1 == 0:
+                    reValue2 = self.start_updata(self.add, self.CRC16)
+                    if reValue2 == 0:
+                        reValue3 = self.sending_message(self.add)
+                        if reValue3 == 0:
+                            reValue4 = self.finish(self.add)
+                            if reValue4 == 0:
+                                print('升级完成')
+                                MainWindow._signal_text.emit('升级完成')
+                                MainWindow.sent_time()
+                                self.switch()
+                            else:
+                                print(reValue4, 'ERROR4')
+                        else:
+                            print(reValue3, 'ERROR3')
+                    else:
+                        print(reValue2, 'ERROR2')
+                else:
+                    print(reValue1, 'ERROR1')
+                    self.__runflag.clear()
         except:
             print_exc(file=open('bug.txt', 'a+'))
             return 1
@@ -156,62 +183,213 @@ class Sending(threading.Thread):
         send = '发送采集器复位帧:' + Comm.makestr(message)
         MainWindow._signal_text.emit(send)
         MainWindow.sent_time()
-        self.serial.write(binascii.a2b_hex(message))
-        time.sleep(0.7)
-        num = self.serial.inWaiting()
-        data = binascii.b2a_hex(self.serial.read(num))
-        if data == '':
-            self.reset(self.add)
-        else:
-            try:
-                data = Comm.makelist(data)
-                while 1:
-                    if data[0] == 'ff':
-                        data = data[1:]
-                    else:
-                        break
-                if data[0] == '68' and data[-1] == '16':
-                    print('Received: ', Comm.list2str(data))
-                    Received_data = '收到:\n' + Comm.makestr(Comm.list2str(data))
-                    MainWindow._signal_text.emit(Received_data)
-                    if data[-3] == '00':
-                        print('确认应答帧')
-                        return 0
-                    else:
-
-            except:
-                self.reset(self.add)
+        data = ''
+        while 1:
+            self.serial.write(binascii.a2b_hex(message))
+            time.sleep(1)
+            num = self.serial.inWaiting()
+            data = str(binascii.b2a_hex(self.serial.read(num)))[2:-1]
+            if data == '' and self.__runflag.isSet():
+                continue
+            elif len(data) < 20:
+                data = ''
+            else:
+                try:
+                    data = Comm.makelist(data)
+                    while 1:
+                        if data[0] == 'ff' or data[0] != '68':
+                            data = data[1:]
+                        else:
+                            break
+                    if data[0] == '68' and data[-1] == '16':
+                        print('Received: ', Comm.list2str(data))
+                        Received_data = '收到:\n' + Comm.makestr(Comm.list2str(data))
+                        MainWindow._signal_text.emit(Received_data)
+                        if data[-3] == '00':
+                            print('确认应答')
+                            MainWindow._signal_text.emit('确认应答')
+                            MainWindow.sent_time()
+                            return 0
+                        elif data[-3] == '01':
+                            print('否认应答')
+                            MainWindow._signal_text.emit('否认应答')
+                            return 1
+                        else:
+                            print('回应未知')
+                            MainWindow._signal_text.emit('否认应答')
+                            return 1
+                except:
+                    print_exc(file=open('bug.txt', 'a+'))
 
     def start_updata(self, add, crc):
-        message = '68' + add + '681A00' + '683002' + crc
+        message = '68' + add + '683002' + crc
         cs = self.CS(Comm.strto0x(Comm.makelist(message)))
         message = message + cs + '16'
         print('发送采集器启动升级帧:', Comm.makestr(message))
         send = '发送采集器启动升级帧:' + Comm.makestr(message)
         MainWindow._signal_text.emit(send)
         MainWindow.sent_time()
+        data = ''
+        while 1:
+            self.serial.write(binascii.a2b_hex(message))
+            time.sleep(1)
+            num = self.serial.inWaiting()
+            data = str(binascii.b2a_hex(self.serial.read(num)))[2:-1]
+            if data == '' and self.__runflag.isSet():
+                continue
+            elif len(data) < 20:
+                continue
+            else:
+                try:
+                    data = Comm.makelist(data)
+                    while 1:
+                        if data[0] == 'ff':
+                            data = data[1:]
+                        else:
+                            break
+                    if data[0] == '68' and data[-1] == '16':
+                        print('Received: ', Comm.list2str(data))
+                        Received_data = '收到:\n' + Comm.makestr(Comm.list2str(data))
+                        MainWindow._signal_text.emit(Received_data)
+                        if data[-5] == '02':
+                            print('确认应答')
+                            MainWindow._signal_text.emit('确认应答')
+                            return 0
+                        elif data[-5] == 'f0':
+                            print('否认应答')
+                            MainWindow._signal_text.emit('否认应答')
+                            return 1
+                        else:
+                            print('回应未知')
+                            MainWindow._signal_text.emit('否认应答')
+                            return 1
+                except:
+                    print_exc(file=open('bug.txt', 'a+'))
 
     def sending_message(self, add):
-        Flashpage = 8
+        if int(MainWindow.ui.comboBox_5.currentText()) == 512:
+            Flashpage = 8
+            offset_ = 4
+        else:
+            Flashpage = 16
+            offset_ = 2
         offset = 0
-        Data = Comm.makelist(self.message[4096:])
+        Data = Comm.makelist(self.message)[4096:]
         x = 0
         times = len(Data) // 128
         while times:
+            text = '共{}帧 '.format(len(Data) // 128), ' 第{}帧'.format(len(Data) // 128 - times + 1)
+            print(text[0] + text[1])
+            MainWindow._signal_text.emit(text[0] + text[1])
             Data_ = Comm.list2str(Data[x:x + 128])
-            message = '68' + add + '683182' + str(Flashpage) + str(offset) + Data_
+            new_Flashpage = hex(Flashpage + 51)[2:]
+            if len(new_Flashpage) == 1:
+                new_Flashpage = '0' + new_Flashpage
+            if len(new_Flashpage) == 3:
+                new_Flashpage = new_Flashpage[1:]
+            new_offset = hex(offset + 51)[2:]
+            if len(new_offset) == 1:
+                new_offset = '0' + new_offset
+
+            message = '68' + add + '683182' + new_Flashpage + new_offset + Data_
             cs = self.CS(Comm.strto0x(Comm.makelist(message)))
+            print('add', add, 'new_Flashpage', new_Flashpage, 'new_offset', new_offset, 'cs', cs)
             message = message + cs + '16'
-            print('发送采集器升级数据帧：', message)
+            print('发送采集器升级数据帧：', Comm.makestr(message))
             send = '发送采集器升级数据帧：' + Comm.makestr(message)
             MainWindow._signal_text.emit(send)
             MainWindow.sent_time()
+            data = ''
+            while 1:
+                self.serial.write(binascii.a2b_hex(message))
+                time.sleep(1)
+                num = self.serial.inWaiting()
+                data = str(binascii.b2a_hex(self.serial.read(num)))[2:-1]
+                if data == '' and self.__runflag.isSet():
+                    continue
+                elif len(data) < 20:
+                    data = ''
+                else:
+                    try:
+                        data = Comm.makelist(data)
+                        while 1:
+                            if data[0] == 'ff':
+                                data = data[1:]
+                            else:
+                                break
+                        if data[0] == '68' and data[-1] == '16':
+                            print('Received: ', Comm.list2str(data))
+                            Received_data = '收到:\n' + Comm.makestr(Comm.list2str(data))
+                            MainWindow._signal_text.emit(Received_data)
+                            if data[8] == 'b1':
+                                print('确认应答')
+                                MainWindow._signal_text.emit('确认应答')
+                                MainWindow.sent_time()
+                                break
+                            elif data[8] == 'f1':
+                                print('否认应答')
+                                MainWindow._signal_text.emit('否认应答')
+                                return 1
+                            else:
+                                print('回应未知')
+                                MainWindow._signal_text.emit('否认应答')
+                                return 1
+                    except:
+                        print_exc(file=open('bug.txt', 'a+'))
             offset += 1
-            if offset == 4:
+            if offset == offset_:
                 Flashpage += 1
                 offset = 0
             x = x + 128
             times -= 1
+
+        return 0
+
+    def finish(self, add):
+        message = '68' + add + '683200'
+        cs = self.CS(Comm.strto0x(Comm.makelist(message)))
+        message = message + cs + '16'
+        print('发送采集器升级结束帧:', Comm.makestr(message))
+        send = '发送采集器升级结束帧:' + Comm.makestr(message)
+        MainWindow._signal_text.emit(send)
+        MainWindow.sent_time()
+        data = ''
+        while 1:
+            self.serial.write(binascii.a2b_hex(message))
+            time.sleep(1)
+            num = self.serial.inWaiting()
+            data = str(binascii.b2a_hex(self.serial.read(num)))[2:-1]
+            if data == '' and self.__runflag.isSet():
+                continue
+            elif len(data) < 20:
+                continue
+            else:
+                try:
+                    data = Comm.makelist(data)
+                    while 1:
+                        if data[0] == 'ff':
+                            data = data[1:]
+                        else:
+                            break
+                    if data[0] == '68' and data[-1] == '16':
+                        print('Received: ', Comm.list2str(data))
+                        Received_data = '收到:\n' + Comm.makestr(Comm.list2str(data))
+                        MainWindow._signal_text.emit(Received_data)
+                        if data[-3] == '00':
+                            print('确认应答')
+                            MainWindow._signal_text.emit('确认应答')
+                            MainWindow.sent_time()
+                            return 0
+                        elif data[-3] == '03':
+                            print('否认应答')
+                            MainWindow._signal_text.emit('否认应答')
+                            return 1
+                        else:
+                            print('回应未知')
+                            MainWindow._signal_text.emit('否认应答')
+                            return 1
+                except:
+                    print_exc(file=open('bug.txt', 'a+'))
 
     def CS(self, list):
         sum = 0
@@ -244,25 +422,39 @@ class Sending(threading.Thread):
                         break
             else:
                 break
-        return hex(tmpCRC)[2:].zfill(4)
+        crc = hex(tmpCRC)[2:].zfill(4)
+        return hex(int(crc[2:], 16) + 51)[2:] + hex(int(crc[0:2], 16) + 51)[2:]
 
-    def open__(self,file):
+    def plus33(self, message):
+        newstr = ''
+        if message is None:
+            print('plus33 is none')
+        else:
+            lenth = len(message)
+            new_list = []
+            while lenth:
+                lenth -= 1
+                x = hex(int(message.pop(), 16) + 51)[2:]
+                if len(x) == 1:
+                    x = '0' + x
+                if len(x) == 3:
+                    x = x[1:]
+                new_list.append(x)
+            newstr = Comm.list2str(new_list[::-1])
+            return newstr
+
+    def open__(self, message, x):
         try:
-            with open(file[0], 'rb') as f:
-                message = ''
-                while 1:
-                    c = f.read()
-                    ssss = str(binascii.b2a_hex(c))[2:-1]
-                    message = message + ssss
-                    if not c:
-                        break
-                old = len(message) // 2
-                message_ff = (((len(message) // 2 - 1) // 512) + 1) * 512 - old
-                self.message = message + 'ff' * message_ff
-                self.CRC16 = self.CRC(Comm.makelist(self.message)[4096:])
-                print('CRC16', self.CRC16)
-                MainWindow.ui.pushButton_2.setDisabled(0)
+            old = len(message) // 2
+            message_ff = (((len(message) // 2 - 1) // x) + 1) * x - old
+            print('message_ff', message_ff)
+            self.message = Comm.makelist(message + ('ff' * message_ff))
+            self.CRC16 = self.CRC(self.message[4096:])
+            self.message = Comm.list2str(self.plus33(self.message))
+            print('message1111', Comm.makelist(self.message))
 
+            print('CRC16', self.CRC16)
+            MainWindow.ui.pushButton_2.setDisabled(0)
         except:
             print_exc(file=open('bug.txt', 'a+'))
 
