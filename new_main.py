@@ -14,6 +14,7 @@ class MainWindow(QMainWindow):
         self.ui = UI_main_new.Ui_MainWindow()
         self.ui.setupUi(self)
         self.addItem = self.GetSerialNumber()
+        self.setWindowTitle('I型采集器升级软件V1.1')
         while 1:
             if self.addItem == None:
                 Warn = QMessageBox.warning(self, '警告', '未检测到串口', QMessageBox.Reset | QMessageBox.Cancel)
@@ -34,6 +35,13 @@ class MainWindow(QMainWindow):
         self.add_button()
         self.list = {}
         self.ui.tableWidget.setDisabled(1)
+        self.ui.pushButton_2.clicked.connect(self.showall)
+
+    def showall(self):
+        if self.ui.pushButton_2.text() == '全部开始':
+            self.ui.pushButton_2.setText('全部关闭')
+        else:
+            self.ui.pushButton_2.setText('全部开始')
 
     def plus33(self, message):
         if message is None:
@@ -153,6 +161,7 @@ class MainWindow(QMainWindow):
     def start_button(self, id):
         star_button = QPushButton('开始')
         star_button.clicked.connect(lambda: self.start_(id))
+        self.ui.pushButton_2.clicked.connect(star_button.click)
         return star_button
 
     def start_(self, id_):
