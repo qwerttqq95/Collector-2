@@ -18,41 +18,12 @@
     <normaloff>:/newPrefix/upgrade.ico</normaloff>:/newPrefix/upgrade.ico</iconset>
   </property>
   <widget class="QWidget" name="centralwidget">
-   <widget class="QPushButton" name="pushButton_2">
-    <property name="enabled">
-     <bool>false</bool>
-    </property>
-    <property name="geometry">
-     <rect>
-      <x>520</x>
-      <y>90</y>
-      <width>75</width>
-      <height>23</height>
-     </rect>
-    </property>
-    <property name="text">
-     <string>开始</string>
-    </property>
-   </widget>
-   <widget class="QTextEdit" name="textEdit">
-    <property name="geometry">
-     <rect>
-      <x>10</x>
-      <y>130</y>
-      <width>641</width>
-      <height>51</height>
-     </rect>
-    </property>
-    <property name="readOnly">
-     <bool>true</bool>
-    </property>
-   </widget>
    <widget class="QWidget" name="layoutWidget">
     <property name="geometry">
      <rect>
       <x>-30</x>
       <y>10</y>
-      <width>491</width>
+      <width>341</width>
       <height>41</height>
      </rect>
     </property>
@@ -67,23 +38,6 @@
       <number>2</number>
      </property>
      <item row="0" column="0">
-      <layout class="QHBoxLayout" name="horizontalLayout_2">
-       <property name="leftMargin">
-        <number>0</number>
-       </property>
-       <item>
-        <widget class="QLabel" name="label">
-         <property name="text">
-          <string>串口号:</string>
-         </property>
-        </widget>
-       </item>
-       <item>
-        <widget class="QComboBox" name="comboBox"/>
-       </item>
-      </layout>
-     </item>
-     <item row="0" column="1">
       <layout class="QHBoxLayout" name="horizontalLayout_3">
        <item>
         <widget class="QLabel" name="label_2">
@@ -114,7 +68,7 @@
        </item>
       </layout>
      </item>
-     <item row="0" column="2">
+     <item row="0" column="1">
       <layout class="QHBoxLayout" name="horizontalLayout_4">
        <item>
         <widget class="QLabel" name="label_3">
@@ -139,7 +93,7 @@
        </item>
       </layout>
      </item>
-     <item row="0" column="3">
+     <item row="0" column="2">
       <layout class="QHBoxLayout" name="horizontalLayout_5">
        <item>
         <widget class="QLabel" name="label_4">
@@ -182,7 +136,7 @@
      <item>
       <widget class="QPushButton" name="pushButton">
        <property name="text">
-        <string>打开</string>
+        <string>选择升级包</string>
        </property>
       </widget>
      </item>
@@ -259,7 +213,7 @@
         <bool>true</bool>
        </property>
        <property name="currentIndex">
-        <number>0</number>
+        <number>1</number>
        </property>
        <item>
         <property name="text">
@@ -279,9 +233,9 @@
     <property name="geometry">
      <rect>
       <x>10</x>
-      <y>210</y>
+      <y>130</y>
       <width>641</width>
-      <height>311</height>
+      <height>391</height>
      </rect>
     </property>
     <property name="editTriggers">
@@ -320,6 +274,22 @@
       <string>状态</string>
      </property>
     </column>
+   </widget>
+   <widget class="QPushButton" name="pushButton_2">
+    <property name="enabled">
+     <bool>false</bool>
+    </property>
+    <property name="geometry">
+     <rect>
+      <x>510</x>
+      <y>90</y>
+      <width>75</width>
+      <height>23</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>全部开始</string>
+    </property>
    </widget>
   </widget>
  </widget>
