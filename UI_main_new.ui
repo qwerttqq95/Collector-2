@@ -15,7 +15,8 @@
   </property>
   <property name="windowIcon">
    <iconset resource="ico.qrc">
-    <normaloff>:/newPrefix/upgrade.ico</normaloff>:/newPrefix/upgrade.ico</iconset>
+    <normaloff>:/newPrefix/upgrade.ico</normaloff>
+    <normalon>:/newPrefix/upgrade.ico</normalon>:/newPrefix/upgrade.ico</iconset>
   </property>
   <widget class="QWidget" name="centralwidget">
    <widget class="QWidget" name="layoutWidget">
