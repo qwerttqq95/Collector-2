@@ -1,4 +1,4 @@
-import Comm, binascii, UI_main_new, sys, serial, serial.tools.list_ports, threading, time, ctypes, inspect,ico
+import Comm, binascii, UI_main_new, sys, serial, serial.tools.list_ports, threading, time, ctypes, inspect, ico
 from PyQt5.QtWidgets import QApplication, QMainWindow, QMessageBox, QFileDialog, QPushButton, QHeaderView, \
     QTableWidgetItem
 from PyQt5.QtCore import pyqtSignal, Qt
@@ -15,7 +15,7 @@ class MainWindow(QMainWindow):
         self.ui = UI_main_new.Ui_MainWindow()
         self.ui.setupUi(self)
         self.addItem = self.GetSerialNumber()
-        self.setWindowTitle('I型采集器升级软件V1.1')
+        self.setWindowTitle('I型采集器升级软件V1.2')
         while 1:
             if self.addItem == None:
                 Warn = QMessageBox.warning(self, '警告', '未检测到串口', QMessageBox.Reset | QMessageBox.Cancel)
@@ -85,7 +85,11 @@ class MainWindow(QMainWindow):
             else:
                 break
         crc = hex(tmpCRC)[2:].zfill(4)
-        return hex(int(crc[2:], 16) + 51)[2:] + hex(int(crc[0:2], 16) + 51)[2:]
+        crc1 = hex(int(crc[2:], 16) + 51)[-2:]
+        crc2 = hex(int(crc[0:2], 16) + 51)[-2:]
+        print ("crc123:", crc, " 1 ", crc1, " 2 ", crc2)
+        # return hex(int(crc[2:], 16) + 51)[2:] + hex(int(crc[0:2], 16) + 51)[2:]
+        return crc1 + crc2
 
     def open_(self):
         try:
@@ -105,7 +109,7 @@ class MainWindow(QMainWindow):
             message_ff = (((len(message) // 2 - 1) // x) + 1) * x - old
             print('message_ff', message_ff)
             self.message = Comm.makelist(message + ('ff' * message_ff))
-            self.CRC16 = self.CRC(self.message[4096:])
+            self.CRC16 = self.CRC(self.message[4096:])[-4:]
             self.message = Comm.list2str(self.plus33(self.message))
             print('CRC16', self.CRC16)
             self.ui.tableWidget.setDisabled(0)
@@ -155,7 +159,7 @@ class MainWindow(QMainWindow):
             self.ui.tableWidget.insertRow(x)
             self.ui.tableWidget.setItem(x, 0, QTableWidgetItem(self.addItem[x]))
             self.ui.tableWidget.setCellWidget(x, 1, self.start_button(x))
-            self.ui.tableWidget.setItem(x,2,QTableWidgetItem(''))
+            self.ui.tableWidget.setItem(x, 2, QTableWidgetItem(''))
 
     def progress(self, list_):
         self.ui.tableWidget.item(list_[0], 2).setText(list_[1])
@@ -181,7 +185,7 @@ class MainWindow(QMainWindow):
                 try:
                     serial_.open()
                 except:
-                    Warn = QMessageBox.warning(self, '警告', serial_.port+'打开失败', QMessageBox.Ok)
+                    Warn = QMessageBox.warning(self, '警告', serial_.port + '打开失败', QMessageBox.Ok)
                     return 1
                 button.setText('停止')
                 new_thread = new_sending(id_, serial_, self.message, self.CRC16)
@@ -245,11 +249,12 @@ class new_sending(threading.Thread):
         message = message + cs + '16'
         print('发送采集器复位帧:', Comm.makestr(message))
         send = '发送采集器复位帧:\n' + Comm.makestr(message)
-        MainWindow._signal_text.emit(send)
-        MainWindow.sent_time()
+
         MainWindow._signal_list.emit([self.id, '发送采集器复位帧'])
         ageain = 0
         while 1:
+            MainWindow._signal_text.emit(send)
+            MainWindow.sent_time()
             self.serial.write(binascii.a2b_hex(message))
             time.sleep(1)
             num = self.serial.inWaiting()
@@ -305,9 +310,10 @@ class new_sending(threading.Thread):
         print('发送采集器启动升级帧:', Comm.makestr(message))
         send = '发送采集器启动升级帧:\n' + Comm.makestr(message)
         MainWindow._signal_list.emit([self.id, '发送采集器启动升级帧'])
-        MainWindow._signal_text.emit(send)
-        MainWindow.sent_time()
+
         while 1:
+            MainWindow._signal_text.emit(send)
+            MainWindow.sent_time()
             self.serial.write(binascii.a2b_hex(message))
             time.sleep(1)
             num = self.serial.inWaiting()
@@ -359,8 +365,8 @@ class new_sending(threading.Thread):
         times = len(Data) // 128
         while times:
             text = '发送采集器升级数据帧,共{}帧 '.format(len(Data) // 128) + (' 第{}帧'.format(len(Data) // 128 - times + 1) +
-                                                       '  还需要{}分钟'.format(times // 60) +
-                                                       ('{}秒'.format(times % 60)))
+                                                                  '  还需要{}分钟'.format(times // 60) +
+                                                                  ('{}秒'.format(times % 60)))
             MainWindow._signal_text.emit(text + '\n')
             MainWindow._signal_list.emit([self.id, text])
             Data_ = Comm.list2str(Data[x:x + 128])
@@ -408,17 +414,17 @@ class new_sending(threading.Thread):
                                 MainWindow._signal_list.emit([self.id, '确认应答'])
                                 MainWindow.sent_time()
                                 break
-                            elif data[8] == 'f1'and data[-3] == '01':
+                            elif data[8] == 'f1' and data[-3] == '01':
                                 print('否认应答')
                                 MainWindow._signal_text.emit('否认应答')
                                 MainWindow._signal_list.emit([self.id, '否认应答(FLASH超出范围)'])
                                 return 1
-                            elif data[8] == 'f1'and data[-3] == '02':
+                            elif data[8] == 'f1' and data[-3] == '02':
                                 print('否认应答')
                                 MainWindow._signal_text.emit('否认应答')
                                 MainWindow._signal_list.emit([self.id, '否认应答(OFFSET超出范围)'])
                                 return 1
-                            elif data[8] == 'f1'and data[-3] == '03':
+                            elif data[8] == 'f1' and data[-3] == '03':
                                 print('否认应答')
                                 MainWindow._signal_text.emit('否认应答')
                                 MainWindow._signal_list.emit([self.id, '否认应答(FLASH写错误)'])
@@ -444,11 +450,11 @@ class new_sending(threading.Thread):
         message = message + cs + '16'
         print('发送采集器升级结束帧:', Comm.makestr(message))
         send = '发送采集器升级结束帧:\n' + Comm.makestr(message)
-        MainWindow._signal_text.emit(send)
-        MainWindow.sent_time()
         MainWindow._signal_list.emit([self.id, '发送采集器升级结束帧'])
         data = ''
         while 1:
+            MainWindow._signal_text.emit(send)
+            MainWindow.sent_time()
             self.serial.write(binascii.a2b_hex(message))
             time.sleep(1)
             num = self.serial.inWaiting()
@@ -469,7 +475,7 @@ class new_sending(threading.Thread):
                         print('Received: ', Comm.list2str(data))
                         Received_data = '收到:\n' + Comm.makestr(Comm.list2str(data))
                         MainWindow._signal_text.emit(Received_data)
-                        if data[-3] == '00'and data[-4]== 'b2':
+                        if data[-3] == '00' and data[-4] == 'b2':
                             print('确认应答')
                             MainWindow._signal_text.emit('确认应答')
                             MainWindow._signal_list.emit([self.id, '确认应答'])
@@ -500,6 +506,7 @@ class new_sending(threading.Thread):
         sum = hex(sum & 0xff)[2:]
         if len(sum) == 1:
             sum = "0" + sum
+        print ("sum: ", sum)
         return sum
 
 
@@ -516,10 +523,6 @@ def _async_raise(tid, exctype):
         # and you should call it again with exc=NULL to revert the effect"""
         ctypes.pythonapi.PyThreadState_SetAsyncExc(tid, None)
         raise SystemError("PyThreadState_SetAsyncExc failed")
-
-
-def stop_thread(thread):
-    _async_raise(thread.ident, SystemExit)
 
 
 if __name__ == '__main__':
